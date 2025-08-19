@@ -1,174 +1,186 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FormEventHandler } from 'react';
 import clsx from 'clsx';
-import styles from './ArticleParamsForm.module.scss';
 
-// ui
-import { Select } from 'src/ui/select';
+import { ArrowButton } from 'src/ui/arrow-button';
 import { Button } from 'src/ui/button';
+import { Select } from 'src/ui/select';
+import { RadioGroup } from 'src/ui/radio-group';
+import { Text } from 'src/ui/text';
+import { Separator } from 'src/ui/separator';
 
-// данные/типы
 import {
-	OptionType,
 	fontFamilyOptions,
-	fontSizeOptions,
-	contentWidthArr,
 	fontColors,
 	backgroundColors,
-	defaultArticleState,
-	type ArticleStateType,
+	contentWidthArr,
+	fontSizeOptions,
+	ArticleStateType,
 } from 'src/constants/articleProps';
 
-// плоские параметры, которые поднимаем вверх
-export type ArticleParams = {
-	fontFamily: string;
-	fontSize: string;
-	contentWidth: string;
-	fontColor: string;
-	bgColor: string;
-};
+import { useOutsideClickClose } from 'src/ui/select/hooks/useOutsideClickClose';
+import styles from './ArticleParamsForm.module.scss';
 
 type Props = {
-	isOpen: boolean; // ← используем для анимации
-	onClose: () => void;
-	onApply?: (p: ArticleParams) => void;
-	onReset?: () => void;
-	initialState?: ArticleStateType;
+	appliedSettings: ArticleStateType;
+	onApply: (next: ArticleStateType) => void;
+	onReset: () => void;
 };
 
 export const ArticleParamsForm = ({
-	isOpen,
-	onClose,
+	appliedSettings,
 	onApply,
 	onReset,
-	initialState = defaultArticleState,
 }: Props) => {
-	const rootRef = useRef<HTMLElement>(null);
+	// флаг открытия панели
+	const [open, setOpen] = useState(false);
 
-	// локальный черновик
-	const [draft, setDraft] = useState<ArticleStateType>(initialState);
+	// локальный черновик формы
+	const [draft, setDraft] = useState<ArticleStateType>(appliedSettings);
 
-	// синхроним черновик при новых initialState
-	useEffect(() => setDraft(initialState), [initialState]);
+	// корневой контейнер для закрытия по клику вне
+	const rootRef = useRef<HTMLDivElement>(null);
 
-	// клик-вне: включаем ТОЛЬКО когда панель открыта и с задержкой в 1 кадр,
-	// чтобы не поймать клик, которым её открыли
-	useEffect(() => {
-		if (!isOpen) return;
-
-		const onDown = (e: MouseEvent) => {
-			if (rootRef.current && !rootRef.current.contains(e.target as Node))
-				onClose();
-		};
-
-		const raf = requestAnimationFrame(() => {
-			document.addEventListener('mousedown', onDown);
-		});
-
-		return () => {
-			cancelAnimationFrame(raf);
-			document.removeEventListener('mousedown', onDown);
-		};
-	}, [isOpen, onClose]);
-
-	// преобразуем OptionType-состояние в плоские строки
-	const toParams = (s: ArticleStateType): ArticleParams => ({
-		fontFamily: s.fontFamilyOption.value,
-		fontSize: s.fontSizeOption.value,
-		contentWidth: s.contentWidth.value,
-		fontColor: s.fontColor.value,
-		bgColor: s.backgroundColor.value,
+	// закрытие по клику вне (переиспользуем готовый хук)
+	useOutsideClickClose({
+		isOpen: open,
+		rootRef,
+		onChange: setOpen,
 	});
 
-	const handleSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
-		onApply?.(toParams(draft));
-		onClose();
-	};
+	// при открытии синхронизируем черновик с «применёнными»
+	useEffect(() => {
+		if (open) setDraft(appliedSettings);
+	}, [open, appliedSettings]);
 
-	const handleReset = () => {
-		setDraft(defaultArticleState);
-		onReset?.();
-		onClose();
-	};
+	// универсальный апдейтер поля черновика
+	const patchDraft = useCallback(
+		<K extends keyof ArticleStateType>(key: K, value: ArticleStateType[K]) => {
+			setDraft((prev) =>
+				prev[key] === value ? prev : { ...prev, [key]: value }
+			);
+		},
+		[]
+	);
 
-	// удобный сеттер для Select
-	const set =
-		<K extends keyof ArticleStateType>(key: K) =>
-		(opt: OptionType) =>
-			setDraft((d) => ({ ...d, [key]: opt }));
+	// мемо-обработчики для select/radio — чтобы не создавать функции на каждый рендер
+	const handlers = useMemo(
+		() => ({
+			fontFamily: (opt: ArticleStateType['fontFamilyOption']) =>
+				patchDraft('fontFamilyOption', opt),
+			fontSize: (opt: ArticleStateType['fontSizeOption']) =>
+				patchDraft('fontSizeOption', opt),
+			fontColor: (opt: ArticleStateType['fontColor']) =>
+				patchDraft('fontColor', opt),
+			background: (opt: ArticleStateType['backgroundColor']) =>
+				patchDraft('backgroundColor', opt),
+			width: (opt: ArticleStateType['contentWidth']) =>
+				patchDraft('contentWidth', opt),
+		}),
+		[patchDraft]
+	);
+
+	const toggleOpen = useCallback(() => setOpen((v) => !v), []);
+
+	const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
+		(e) => {
+			e.preventDefault();
+			onApply(draft);
+		},
+		[onApply, draft]
+	);
+
+	const handleReset: FormEventHandler<HTMLFormElement> = useCallback(
+		(e) => {
+			e.preventDefault();
+			onReset();
+		},
+		[onReset]
+	);
 
 	return (
-		<aside
-			ref={rootRef}
-			className={clsx(styles.container, isOpen && styles.container_open)}
-			aria-label='Панель параметров'>
-			<div className={styles.header}>
-				<h3>Задайте параметры</h3>
-				<button
-					type='button'
-					onClick={onClose}
-					className={styles.closeBtn}
-					aria-label='Закрыть'>
-					×
-				</button>
-			</div>
+		<div ref={rootRef}>
+			<ArrowButton isOpen={open} onClick={toggleOpen} />
 
-			<form className={styles.form} onSubmit={handleSubmit}>
-				{/* ШРИФТ */}
-				<Select
-					title='Шрифт'
-					placeholder='Выберите шрифт'
-					selected={draft.fontFamilyOption}
-					options={fontFamilyOptions}
-					onChange={set('fontFamilyOption')}
-				/>
+			<aside
+				className={clsx(styles.container, {
+					[styles.container_open]: open,
+				})}>
+				<form
+					className={styles.form}
+					onSubmit={handleSubmit}
+					onReset={handleReset}>
+					<header className={styles.title}>
+						<Text as='h2' size={31} weight={800} uppercase>
+							Задайте параметры
+						</Text>
+					</header>
 
-				{/* РАЗМЕР ШРИФТА */}
-				<Select
-					title='Размер шрифта'
-					placeholder='Выберите размер'
-					selected={draft.fontSizeOption}
-					options={fontSizeOptions}
-					onChange={set('fontSizeOption')}
-				/>
+					{/* Шрифт */}
+					<section className={styles.section}>
+						<Select
+							title='Шрифт'
+							selected={draft.fontFamilyOption}
+							options={fontFamilyOptions}
+							placeholder='Выберите шрифт'
+							onChange={handlers.fontFamily}
+						/>
+					</section>
 
-				{/* ЦВЕТ ШРИФТА */}
-				<Select
-					title='Цвет шрифта'
-					placeholder='Выберите цвет'
-					selected={draft.fontColor}
-					options={fontColors}
-					onChange={set('fontColor')}
-				/>
+					{/* Размер шрифта */}
+					<section className={styles.section}>
+						<RadioGroup
+							title='Размер шрифта'
+							name='font-size'
+							options={fontSizeOptions}
+							selected={draft.fontSizeOption}
+							onChange={handlers.fontSize}
+						/>
+					</section>
 
-				{/* ЦВЕТ ФОНА */}
-				<Select
-					title='Цвет фона'
-					placeholder='Выберите цвет'
-					selected={draft.backgroundColor}
-					options={backgroundColors}
-					onChange={set('backgroundColor')}
-				/>
+					{/* Цвет текста */}
+					<section className={styles.section}>
+						<Select
+							title='Цвет текста'
+							selected={draft.fontColor}
+							options={fontColors}
+							placeholder='Выберите цвет текста'
+							onChange={handlers.fontColor}
+						/>
+					</section>
 
-				{/* ШИРИНА КОНТЕНТА */}
-				<Select
-					title='Ширина контента'
-					placeholder='Выберите ширину'
-					selected={draft.contentWidth}
-					options={contentWidthArr}
-					onChange={set('contentWidth')}
-				/>
+					<div className={styles.section}>
+						<Separator />
+					</div>
 
-				<div className={styles.bottomContainer}>
-					<Button
-						title='Сбросить'
-						htmlType='button'
-						type='clear'
-						onClick={handleReset}
-					/>
-					<Button title='Применить' htmlType='submit' type='apply' />
-				</div>
-			</form>
-		</aside>
+					{/* Цвет фона */}
+					<section className={styles.section}>
+						<Select
+							title='Цвет фона'
+							selected={draft.backgroundColor}
+							options={backgroundColors}
+							placeholder='Выберите цвет фона'
+							onChange={handlers.background}
+						/>
+					</section>
+
+					{/* Ширина контента */}
+					<section className={styles.section}>
+						<Select
+							title='Ширина контента'
+							selected={draft.contentWidth}
+							options={contentWidthArr}
+							placeholder='Выберите ширину'
+							onChange={handlers.width}
+						/>
+					</section>
+
+					<footer className={styles.bottomContainer}>
+						<Button title='Сбросить' htmlType='reset' type='clear' />
+						<Button title='Применить' htmlType='submit' type='apply' />
+					</footer>
+				</form>
+			</aside>
+		</div>
 	);
 };
