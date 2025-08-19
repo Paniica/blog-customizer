@@ -3,8 +3,8 @@ import { StrictMode, CSSProperties } from 'react';
 import clsx from 'clsx';
 
 import { Article } from './components/article/Article';
-import { ArticleParamsForm } from './components/article-params-form/ArticleParamsForm';
 import { defaultArticleState } from './constants/articleProps';
+import { CustomizerShell } from './components/CustomizerShell';
 
 import './styles/index.scss';
 import styles from './styles/index.module.scss';
@@ -25,8 +25,9 @@ const App = () => {
 					'--bg-color': defaultArticleState.backgroundColor.value,
 				} as CSSProperties
 			}>
-			<ArticleParamsForm />
-			<Article />
+			<CustomizerShell>
+				<Article />
+			</CustomizerShell>
 		</main>
 	);
 };

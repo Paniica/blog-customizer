@@ -177,3 +177,24 @@ export const defaultArticleState = {
 };
 
 export type ArticleStateType = typeof defaultArticleState;
+
+export type ArticleParams = {
+	fontFamily: string;
+	fontSize: string;
+	contentWidth: string;
+	fontColor: string;
+	bgColor: string;
+};
+
+/** Преобразуем твой defaultArticleState в ArticleParams */
+export const toArticleParams = (state: ArticleStateType): ArticleParams => ({
+	fontFamily: state.fontFamilyOption.value,
+	fontSize: state.fontSizeOption.value,
+	contentWidth: state.contentWidth.value,
+	fontColor: state.fontColor.value,
+	bgColor: state.backgroundColor.value,
+});
+
+/** Дефолтные параметры в плоском виде (удобно для формы/сброса/применения) */
+export const defaultArticleParams: ArticleParams =
+	toArticleParams(defaultArticleState);
