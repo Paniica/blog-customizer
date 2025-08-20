@@ -1,46 +1,38 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArticleParamsForm } from './components/article-params-form/ArticleParamsForm';
 import { Article } from './components/article/Article';
 import styles from './App.module.scss';
 
 import {
-	fontFamilyOptions,
-	fontSizeOptions,
-	fontColors,
-	backgroundColors,
-	contentWidthArr,
-	type ArticleStateType,
+	type ArticleParams,
+	defaultArticleParams,
 } from './constants/articleProps';
 
-// Дефолтные настройки статьи
-const defaultArticleState: ArticleStateType = {
-	fontFamilyOption: fontFamilyOptions[0],
-	fontSizeOption: fontSizeOptions[0],
-	fontColor: fontColors[0],
-	backgroundColor: backgroundColors[0],
-	contentWidth: contentWidthArr[0],
-};
-
 export default function App() {
-	const [appliedSettings, setAppliedSettings] =
-		useState<ArticleStateType>(defaultArticleState);
+	// Храним плоские параметры (строки) — без объектов опций
+	const [params, setParams] = useState<ArticleParams>(defaultArticleParams);
+
+	// Выставляем CSS-переменные на контейнере приложения
+	const cssVars = useMemo(
+		() =>
+			({
+				['--font-family' as any]: params.fontFamily,
+				['--font-size' as any]: params.fontSize,
+				['--font-color' as any]: params.fontColor,
+				['--bg-color' as any]: params.bgColor,
+				['--container-width' as any]: params.contentWidth,
+				// на всякий случай — прямой фон контейнера
+				background: params.bgColor,
+			} as React.CSSProperties),
+		[params]
+	);
 
 	return (
-		<main
-			className={styles.main}
-			style={
-				{
-					'--font-family': appliedSettings.fontFamilyOption.value,
-					'--font-size': appliedSettings.fontSizeOption.value,
-					'--font-color': appliedSettings.fontColor.value,
-					'--container-width': appliedSettings.contentWidth.value,
-					'--bg-color': appliedSettings.backgroundColor.value,
-				} as React.CSSProperties
-			}>
+		<main className={styles.main} style={cssVars}>
 			<ArticleParamsForm
-				appliedSettings={appliedSettings}
-				onApply={setAppliedSettings}
-				onReset={() => setAppliedSettings(defaultArticleState)}
+				appliedParams={params}
+				onApply={setParams}
+				onReset={() => setParams(defaultArticleParams)}
 			/>
 			<Article />
 		</main>

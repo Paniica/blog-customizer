@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEventHandler } from 'react';
 import clsx from 'clsx';
 
 import { ArrowButton } from 'src/ui/arrow-button';
@@ -15,47 +14,47 @@ import {
 	backgroundColors,
 	contentWidthArr,
 	fontSizeOptions,
-	ArticleStateType,
+	type ArticleParams,
 } from 'src/constants/articleProps';
 
 import { useOutsideClickClose } from 'src/ui/select/hooks/useOutsideClickClose';
 import styles from './ArticleParamsForm.module.scss';
 
+// нормализуем value из Select/Radio
+const toValue = (v: any): string =>
+	typeof v === 'string' ? v : v?.target?.value ?? v?.value ?? '';
+
+// находим опцию по строковому value (для selected)
+const pickOption = <T extends { value: string }>(list: T[], value: string): T =>
+	list.find((o) => o.value === value) ?? list[0];
+
 type Props = {
-	appliedSettings: ArticleStateType;
-	onApply: (next: ArticleStateType) => void;
+	appliedParams: ArticleParams; // плоские строки
+	onApply: (next: ArticleParams) => void;
 	onReset: () => void;
 };
 
 export const ArticleParamsForm = ({
-	appliedSettings,
+	appliedParams,
 	onApply,
 	onReset,
 }: Props) => {
-	// флаг открытия панели
+	// открыт/закрыт сайдбар
 	const [open, setOpen] = useState(false);
 
-	// локальный черновик формы
-	const [draft, setDraft] = useState<ArticleStateType>(appliedSettings);
+	// локальный черновик
+	const [draft, setDraft] = useState<ArticleParams>(appliedParams);
 
-	// корневой контейнер для закрытия по клику вне
+	// клик-вне
 	const rootRef = useRef<HTMLDivElement>(null);
+	useOutsideClickClose({ isOpen: open, rootRef, onChange: setOpen });
 
-	// закрытие по клику вне (переиспользуем готовый хук)
-	useOutsideClickClose({
-		isOpen: open,
-		rootRef,
-		onChange: setOpen,
-	});
+	// синхронизация при внешнем применении/сбросе
+	useEffect(() => setDraft(appliedParams), [appliedParams]);
 
-	// при открытии синхронизируем черновик с «применёнными»
-	useEffect(() => {
-		if (open) setDraft(appliedSettings);
-	}, [open, appliedSettings]);
-
-	// универсальный апдейтер поля черновика
-	const patchDraft = useCallback(
-		<K extends keyof ArticleStateType>(key: K, value: ArticleStateType[K]) => {
+	// обновление одного поля черновика
+	const setField = useCallback(
+		<K extends keyof ArticleParams>(key: K, value: ArticleParams[K]) => {
 			setDraft((prev) =>
 				prev[key] === value ? prev : { ...prev, [key]: value }
 			);
@@ -63,53 +62,37 @@ export const ArticleParamsForm = ({
 		[]
 	);
 
-	// мемо-обработчики для select/radio — чтобы не создавать функции на каждый рендер
+	// onChange для контролов
 	const handlers = useMemo(
 		() => ({
-			fontFamily: (opt: ArticleStateType['fontFamilyOption']) =>
-				patchDraft('fontFamilyOption', opt),
-			fontSize: (opt: ArticleStateType['fontSizeOption']) =>
-				patchDraft('fontSizeOption', opt),
-			fontColor: (opt: ArticleStateType['fontColor']) =>
-				patchDraft('fontColor', opt),
-			background: (opt: ArticleStateType['backgroundColor']) =>
-				patchDraft('backgroundColor', opt),
-			width: (opt: ArticleStateType['contentWidth']) =>
-				patchDraft('contentWidth', opt),
+			fontFamily: (v: unknown) => setField('fontFamily', toValue(v)),
+			fontSize: (v: unknown) => setField('fontSize', toValue(v)),
+			fontColor: (v: unknown) => setField('fontColor', toValue(v)),
+			background: (v: unknown) => setField('bgColor', toValue(v)),
+			width: (v: unknown) => setField('contentWidth', toValue(v)),
 		}),
-		[patchDraft]
+		[setField]
 	);
 
-	const toggleOpen = useCallback(() => setOpen((v) => !v), []);
+	// кнопки (НЕ submit)
+	const handleApplyClick = useCallback(() => {
+		onApply(draft);
+		setOpen(false);
+	}, [onApply, draft]);
 
-	const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
-		(e) => {
-			e.preventDefault();
-			onApply(draft);
-		},
-		[onApply, draft]
-	);
-
-	const handleReset: FormEventHandler<HTMLFormElement> = useCallback(
-		(e) => {
-			e.preventDefault();
-			onReset();
-		},
-		[onReset]
-	);
+	const handleResetClick = useCallback(() => {
+		onReset();
+		setOpen(false);
+	}, [onReset]);
 
 	return (
 		<div ref={rootRef}>
-			<ArrowButton isOpen={open} onClick={toggleOpen} />
+			<ArrowButton isOpen={open} onClick={() => setOpen((v) => !v)} />
 
 			<aside
-				className={clsx(styles.container, {
-					[styles.container_open]: open,
-				})}>
-				<form
-					className={styles.form}
-					onSubmit={handleSubmit}
-					onReset={handleReset}>
+				className={clsx(styles.container, { [styles.container_open]: open })}>
+				{/* без <form>, чтобы не было нативного submit */}
+				<div className={styles.form} role='form'>
 					<header className={styles.title}>
 						<Text as='h2' size={31} weight={800} uppercase>
 							Задайте параметры
@@ -120,7 +103,7 @@ export const ArticleParamsForm = ({
 					<section className={styles.section}>
 						<Select
 							title='Шрифт'
-							selected={draft.fontFamilyOption}
+							selected={pickOption(fontFamilyOptions, draft.fontFamily)}
 							options={fontFamilyOptions}
 							placeholder='Выберите шрифт'
 							onChange={handlers.fontFamily}
@@ -133,7 +116,7 @@ export const ArticleParamsForm = ({
 							title='Размер шрифта'
 							name='font-size'
 							options={fontSizeOptions}
-							selected={draft.fontSizeOption}
+							selected={pickOption(fontSizeOptions, draft.fontSize)}
 							onChange={handlers.fontSize}
 						/>
 					</section>
@@ -142,7 +125,7 @@ export const ArticleParamsForm = ({
 					<section className={styles.section}>
 						<Select
 							title='Цвет текста'
-							selected={draft.fontColor}
+							selected={pickOption(fontColors, draft.fontColor)}
 							options={fontColors}
 							placeholder='Выберите цвет текста'
 							onChange={handlers.fontColor}
@@ -157,7 +140,7 @@ export const ArticleParamsForm = ({
 					<section className={styles.section}>
 						<Select
 							title='Цвет фона'
-							selected={draft.backgroundColor}
+							selected={pickOption(backgroundColors, draft.bgColor)}
 							options={backgroundColors}
 							placeholder='Выберите цвет фона'
 							onChange={handlers.background}
@@ -168,7 +151,7 @@ export const ArticleParamsForm = ({
 					<section className={styles.section}>
 						<Select
 							title='Ширина контента'
-							selected={draft.contentWidth}
+							selected={pickOption(contentWidthArr, draft.contentWidth)}
 							options={contentWidthArr}
 							placeholder='Выберите ширину'
 							onChange={handlers.width}
@@ -176,10 +159,11 @@ export const ArticleParamsForm = ({
 					</section>
 
 					<footer className={styles.bottomContainer}>
-						<Button title='Сбросить' htmlType='reset' type='clear' />
-						<Button title='Применить' htmlType='submit' type='apply' />
+						{/* наши Button должны рендерить <button type="button"> по умолчанию */}
+						<Button title='Сбросить' type='clear' onClick={handleResetClick} />
+						<Button title='Применить' type='apply' onClick={handleApplyClick} />
 					</footer>
-				</form>
+				</div>
 			</aside>
 		</div>
 	);
