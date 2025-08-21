@@ -1,5 +1,5 @@
 import { ElementType, ReactNode } from 'react';
-import { clsx } from 'clsx';
+import clsx from 'clsx'; // ← ВАЖНО: default import
 import { FontFamiliesClasses } from 'src/constants/articleProps';
 
 import styles from './index.module.scss';
@@ -50,5 +50,6 @@ export const Text = ({
 		styles[`${family}`],
 		{ [styles.dynamicLite]: dynamicLite }
 	);
+
 	return <Tag className={className}>{children}</Tag>;
 };

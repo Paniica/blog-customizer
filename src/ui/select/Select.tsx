@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { MouseEventHandler } from 'react';
 import clsx from 'clsx';
 import { OptionType } from 'src/constants/articleProps';
@@ -16,63 +16,77 @@ type SelectProps = {
 	options: OptionType[];
 	placeholder?: string;
 	onChange?: (selected: OptionType) => void;
+	/** Коллбэк, когда дропдаун ЗАКРЫТ (клик-вне/Enter/выбор/повторный клик по placeholder) */
 	onClose?: () => void;
 	title?: string;
 };
 
 export const Select = (props: SelectProps) => {
 	const { options, placeholder, selected, onChange, onClose, title } = props;
+
 	const [isOpen, setIsOpen] = useState<boolean>(false);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const placeholderRef = useRef<HTMLDivElement>(null);
 	const optionClassName = selected?.optionClassName ?? '';
 
+	// Закрытие по клику-вне — хук навешивает слушатель ТОЛЬКО когда открыто
 	useOutsideClickClose({
 		isOpen,
 		rootRef,
-		onClose,
 		onChange: setIsOpen,
 	});
 
+	// Закрытие по Enter (поведение проекта) — тоже ждёт Dispatch
 	useEnterSubmit({
 		placeholderRef,
 		onChange: setIsOpen,
 	});
 
+	// Сообщаем наружу о закрытии тогда и только тогда, когда состояние стало закрытым
+	const wasOpenRef = useRef(isOpen);
+	useEffect(() => {
+		if (wasOpenRef.current && !isOpen) {
+			onClose?.();
+		}
+		wasOpenRef.current = isOpen;
+	}, [isOpen, onClose]);
+
 	const handleOptionClick = (option: OptionType) => {
 		setIsOpen(false);
 		onChange?.(option);
 	};
+
 	const handlePlaceHolderClick: MouseEventHandler<HTMLDivElement> = () => {
-		setIsOpen((isOpen) => !isOpen);
+		setIsOpen((prev) => !prev);
+		// onClose вызовется автоматом из эффекта, когда станет false
 	};
 
 	return (
 		<div className={styles.container}>
 			{title && (
-				<>
-					<Text size={12} weight={800} uppercase>
-						{title}
-					</Text>
-				</>
+				<Text size={12} weight={800} uppercase>
+					{title}
+				</Text>
 			)}
+
 			<div
 				className={styles.selectWrapper}
 				ref={rootRef}
 				data-is-active={isOpen}
 				data-testid='selectWrapper'>
 				<img src={arrowDown} alt='иконка стрелочки' className={styles.arrow} />
+
 				<div
 					className={clsx(
 						styles.placeholder,
 						(styles as Record<string, string>)[optionClassName]
 					)}
-					data-status={status}
 					data-selected={!!selected?.value}
 					onClick={handlePlaceHolderClick}
 					role='button'
 					tabIndex={0}
-					ref={placeholderRef}>
+					ref={placeholderRef}
+					aria-expanded={isOpen}>
 					<Text
 						family={
 							isFontFamilyClass(selected?.className)
@@ -82,6 +96,7 @@ export const Select = (props: SelectProps) => {
 						{selected?.title || placeholder}
 					</Text>
 				</div>
+
 				{isOpen && (
 					<ul className={styles.select} data-testid='selectDropdown'>
 						{options

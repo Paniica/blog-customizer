@@ -1,0 +1,27 @@
+.main {
+	/* ширина области контента */
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 24px;
+	min-height: 100vh;
+	padding: 24px;
+	color: var(--font-color, #111111);
+	font-size: var(--font-size, 16px);
+
+	/* контейнер страницы с CSS-переменными */
+	font-family: var(
+		--font-family,
+		system-ui,
+		-apple-system,
+		Segoe UI,
+		Roboto,
+		sans-serif
+	);
+	background: var(--bg-color, #ffffff);
+
+	/* чтобы ширина статьи ограничивалась переменной */
+
+	& > :where(article) {
+		max-width: var(--container-width, 760px);
+	}
+}
