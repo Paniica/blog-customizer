@@ -39,15 +39,19 @@ export const ArticleParamsForm = ({
 	onApply,
 	onReset,
 }: Props) => {
-	// открыт/закрыт сайдбар
-	const [open, setOpen] = useState(false);
+	// открыто/закрыто меню параметров
+	const [isMenuOpen, setIsMenuOpen] = useState(false);
 
 	// локальный черновик
 	const [draft, setDraft] = useState<ArticleParams>(appliedParams);
 
 	// клик-вне
 	const rootRef = useRef<HTMLDivElement>(null);
-	useOutsideClickClose({ isOpen: open, rootRef, onChange: setOpen });
+	useOutsideClickClose({
+		isOpen: isMenuOpen,
+		rootRef,
+		onChange: setIsMenuOpen,
+	});
 
 	// синхронизация при внешнем применении/сбросе
 	useEffect(() => setDraft(appliedParams), [appliedParams]);
@@ -77,20 +81,26 @@ export const ArticleParamsForm = ({
 	// кнопки (НЕ submit)
 	const handleApplyClick = useCallback(() => {
 		onApply(draft);
-		setOpen(false);
+		setIsMenuOpen(false);
 	}, [onApply, draft]);
 
 	const handleResetClick = useCallback(() => {
 		onReset();
-		setOpen(false);
+		setIsMenuOpen(false);
 	}, [onReset]);
+
+	const handleToggleMenu = useCallback(() => {
+		setIsMenuOpen((v) => !v);
+	}, []);
 
 	return (
 		<div ref={rootRef}>
-			<ArrowButton isOpen={open} onClick={() => setOpen((v) => !v)} />
+			<ArrowButton isOpen={isMenuOpen} onClick={handleToggleMenu} />
 
 			<aside
-				className={clsx(styles.container, { [styles.container_open]: open })}>
+				className={clsx(styles.container, {
+					[styles.container_open]: isMenuOpen,
+				})}>
 				{/* без <form>, чтобы не было нативного submit */}
 				<div className={styles.form} role='form'>
 					<header className={styles.title}>
